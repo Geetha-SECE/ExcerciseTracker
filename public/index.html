@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Exercise Tracker</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Exercise Tracker</h1>
+      <p>Track your workouts and view your exercise logs</p>
+    </header>
+
+    <div class="forms-section">
+      <div class="form-card">
+        <h2>Create User</h2>
+        <form id="create-user-form">
+          <label for="new-username">Username:</label>
+          <input type="text" id="new-username" name="username" placeholder="Enter username" required>
+          <button type="submit">Create User</button>
+        </form>
+      </div>
+
+      <div class="form-card">
+        <h2>Add Exercise</h2>
+        <form id="add-exercise-form">
+          <label for="exercise-user">User ID:</label>
+          <input type="text" id="exercise-user" name="_id" placeholder="Enter user ID" required>
+
+          <label for="exercise-description">Description:</label>
+          <input type="text" id="exercise-description" name="description" placeholder="e.g., push-ups" required>
+
+          <label for="exercise-duration">Duration (minutes):</label>
+          <input type="number" id="exercise-duration" name="duration" placeholder="e.g., 30" required min="0">
+
+          <label for="exercise-date">Date (optional):</label>
+          <input type="date" id="exercise-date" name="date">
+
+          <button type="submit">Add Exercise</button>
+        </form>
+      </div>
+
+      <div class="form-card">
+        <h2>View Exercise Log</h2>
+        <form id="view-log-form">
+          <label for="log-user">User ID:</label>
+          <input type="text" id="log-user" name="_id" placeholder="Enter user ID" required>
+
+          <label for="log-from">From (yyyy-mm-dd):</label>
+          <input type="date" id="log-from" name="from">
+
+          <label for="log-to">To (yyyy-mm-dd):</label>
+          <input type="date" id="log-to" name="to">
+
+          <label for="log-limit">Limit:</label>
+          <input type="number" id="log-limit" name="limit" placeholder="e.g., 10" min="1">
+
+          <button type="submit">View Log</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="response-section">
+      <h2>API Response</h2>
+      <pre id="response-output">No response yet. Submit a form to see results.</pre>
+    </div>
+
+    <div class="error-section" id="error-section"></div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
