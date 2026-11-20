@@ -1,6 +1,8 @@
+
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -9,14 +11,9 @@ const PORT = process.env.PORT || 3000;
 const users = [];
 const exercises = [];
 
-// Helper: generate MongoDB-style 24-char hex ID
+// Generate unique 24-character hexadecimal ID
 function generateId() {
-  const hex = '0123456789abcdef';
-  let id = '';
-  for (let i = 0; i < 24; i++) {
-    id += hex[Math.floor(Math.random() * 16)];
-  }
-  return id;
+  return crypto.randomBytes(12).toString('hex');
 }
 
 // Middleware
@@ -28,12 +25,20 @@ app.use(express.static(path.join(__dirname, 'public')));
 // A. Create User
 app.post('/api/users', (req, res) => {
   const username = req.body.username;
-  if (!username) {
-    return res.status(400).json({ error: 'username is required' });
+
+  if (!username || !username.trim()) {
+    return res.status(400).json({
+      error: 'username is required'
+    });
   }
-  const _id = generateId();
-  const user = { username, _id };
+
+  const user = {
+    username: username.trim(),
+    _id: generateId()
+  };
+
   users.push(user);
+
   res.json(user);
 });
 
@@ -47,48 +52,58 @@ app.post('/api/users/:_id/exercises', (req, res) => {
   const { _id } = req.params;
   const { description, duration, date } = req.body;
 
-  // Validate user ID
   const user = users.find(u => u._id === _id);
+
   if (!user) {
-    return res.status(404).json({ error: 'User not found' });
+    return res.status(404).json({
+      error: 'User not found'
+    });
   }
 
-  if (!description || duration === undefined || duration === '') {
-    return res.status(400).json({ error: 'description and duration are required' });
+  if (
+    typeof description !== 'string' ||
+    !description.trim() ||
+    duration === undefined ||
+    duration === ''
+  ) {
+    return res.status(400).json({
+      error: 'description and duration are required'
+    });
   }
 
-  // Ensure duration is a number
   const durationNum = Number(duration);
-  if (isNaN(durationNum)) {
-    return res.status(400).json({ error: 'duration must be a number' });
+
+  if (!Number.isFinite(durationNum) || durationNum <= 0) {
+    return res.status(400).json({
+      error: 'duration must be a positive number'
+    });
   }
 
-  // Handle date
-  let dateObj;
-  if (date && date.trim() !== '') {
-    dateObj = new Date(date);
-    if (isNaN(dateObj.getTime())) {
-      return res.status(400).json({ error: 'invalid date' });
-    }
-  } else {
-    dateObj = new Date();
+  const dateObj = date
+    ? new Date(date)
+    : new Date();
+
+  if (isNaN(dateObj.getTime())) {
+    return res.status(400).json({
+      error: 'invalid date'
+    });
   }
 
   const exercise = {
-    _id: generateId(),
-    username: user.username,
-    description: String(description),
+    userId: user._id,
+    description: description.trim(),
     duration: durationNum,
     date: dateObj.toDateString()
   };
 
   exercises.push(exercise);
+
   res.json({
-    username: exercise.username,
+    username: user.username,
     description: exercise.description,
     duration: exercise.duration,
     date: exercise.date,
-    _id: exercise._id
+    _id: user._id
   });
 });
 
@@ -98,37 +113,68 @@ app.get('/api/users/:_id/logs', (req, res) => {
   const { from, to, limit } = req.query;
 
   const user = users.find(u => u._id === _id);
+
   if (!user) {
-    return res.status(404).json({ error: 'User not found' });
+    return res.status(404).json({
+      error: 'User not found'
+    });
   }
 
-  let userExercises = exercises.filter(e => e.username === user.username);
+  // Get exercises belonging to this user
+  let userExercises = exercises.filter(
+    exercise => exercise.userId === user._id
+  );
 
-  // Apply date filter
+  // Validate and filter FROM date
   if (from) {
-    const fromObj = new Date(from);
-    if (!isNaN(fromObj.getTime())) {
-      userExercises = userExercises.filter(e => new Date(e.date) >= fromObj);
+    const fromDate = new Date(from);
+
+    if (isNaN(fromDate.getTime())) {
+      return res.status(400).json({
+        error: 'Invalid from date'
+      });
     }
+
+    userExercises = userExercises.filter(
+      exercise => new Date(exercise.date) >= fromDate
+    );
   }
 
+  // Validate and filter TO date
   if (to) {
-    const toObj = new Date(to);
-    if (!isNaN(toObj.getTime())) {
-      toObj.setHours(23, 59, 59, 999);
-      userExercises = userExercises.filter(e => new Date(e.date) <= toObj);
+    const toDate = new Date(to);
+
+    if (isNaN(toDate.getTime())) {
+      return res.status(400).json({
+        error: 'Invalid to date'
+      });
     }
+
+    toDate.setHours(23, 59, 59, 999);
+
+    userExercises = userExercises.filter(
+      exercise => new Date(exercise.date) <= toDate
+    );
   }
 
-  // Apply limit
-  if (limit && !isNaN(Number(limit))) {
-    userExercises = userExercises.slice(0, Number(limit));
+  // Validate and apply LIMIT
+  if (limit !== undefined) {
+    const limitNumber = Number(limit);
+
+    if (!Number.isInteger(limitNumber) || limitNumber < 0) {
+      return res.status(400).json({
+        error: 'Invalid limit'
+      });
+    }
+
+    userExercises = userExercises.slice(0, limitNumber);
   }
 
-  const log = userExercises.map(e => ({
-    description: e.description,
-    duration: e.duration,
-    date: e.date
+  // Prepare log response
+  const log = userExercises.map(exercise => ({
+    description: exercise.description,
+    duration: exercise.duration,
+    date: exercise.date
   }));
 
   res.json({
@@ -140,10 +186,11 @@ app.get('/api/users/:_id/logs', (req, res) => {
 });
 
 // Serve frontend
-app.get('*', (req, res) => {
+app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
