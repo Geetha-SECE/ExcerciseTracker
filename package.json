@@ -1,13 +1,14 @@
+
 {
   "name": "exercise-tracker",
   "version": "1.0.0",
-  "description": "freeCodeCamp Exercise Tracker certification project",
+  "description": "freeCodeCamp Exercise Tracker",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-        "cors": "^2.8.5",
+    "cors": "^2.8.5",
     "express": "^4.19.2"
   }
 }

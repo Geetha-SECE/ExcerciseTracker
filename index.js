@@ -1,3 +1,4 @@
+
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -15,17 +16,28 @@ function generateId() {
   return crypto.randomBytes(12).toString('hex');
 }
 
-// Parse yyyy-mm-dd strings in local time to prevent UTC timezone shifts
-function parseLocalDate(dateStr) {
-  if (!dateStr) return new Date();
+// Parse YYYY-MM-DD as a local date
+function parseLocalDate(dateString) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateString);
 
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
-  if (match) {
-    const [, year, month, day] = match;
-    return new Date(Number(year), Number(month) - 1, Number(day));
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+
+  const date = new Date(year, month - 1, day);
+
+  // Reject invalid calendar dates
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
   }
 
-  return new Date(dateStr);
+  return date;
 }
 
 // Middleware
@@ -34,11 +46,11 @@ app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// A. Create User
+// 1. Create User
 app.post('/api/users', (req, res) => {
   const username = req.body.username;
 
-  if (!username || !username.trim()) {
+  if (typeof username !== 'string' || !username.trim()) {
     return res.status(400).json({
       error: 'username is required'
     });
@@ -54,17 +66,19 @@ app.post('/api/users', (req, res) => {
   res.json(user);
 });
 
-// B. Get All Users
+// 2. Get All Users
 app.get('/api/users', (req, res) => {
   res.json(users);
 });
 
-// C. Add Exercise
+// 3. Add Exercise
 app.post('/api/users/:_id/exercises', (req, res) => {
   const user = users.find(u => u._id === req.params._id);
 
   if (!user) {
-    return res.status(404).json({ error: 'User not found' });
+    return res.status(404).json({
+      error: 'User not found'
+    });
   }
 
   const { description, duration, date } = req.body;
@@ -84,10 +98,18 @@ app.post('/api/users/:_id/exercises', (req, res) => {
     });
   }
 
-  const exerciseDate = parseLocalDate(date);
+  let exerciseDate;
 
-  if (isNaN(exerciseDate.getTime())) {
-    return res.status(400).json({ error: 'Invalid date' });
+  if (date) {
+    exerciseDate = parseLocalDate(date);
+
+    if (!exerciseDate) {
+      return res.status(400).json({
+        error: 'Invalid date'
+      });
+    }
+  } else {
+    exerciseDate = new Date();
   }
 
   const exercise = {
@@ -107,39 +129,46 @@ app.post('/api/users/:_id/exercises', (req, res) => {
   });
 });
 
-// D. Get Exercise Logs
+// 4. Get Exercise Logs
 app.get('/api/users/:_id/logs', (req, res) => {
   const user = users.find(u => u._id === req.params._id);
 
   if (!user) {
-    return res.status(404).json({ error: 'User not found' });
+    return res.status(404).json({
+      error: 'User not found'
+    });
   }
 
   const { from, to, limit } = req.query;
 
+  // Get all exercises belonging to this user
   let userExercises = exercises.filter(
     exercise => exercise.userId === user._id
   );
 
+  // Filter FROM date
   if (from) {
     const fromDate = parseLocalDate(from);
 
-    if (isNaN(fromDate.getTime())) {
-      return res.status(400).json({ error: 'Invalid from date' });
+    if (!fromDate) {
+      return res.status(400).json({
+        error: 'Invalid from date'
+      });
     }
-
-    fromDate.setHours(0, 0, 0, 0);
 
     userExercises = userExercises.filter(
       exercise => exercise.date >= fromDate
     );
   }
 
+  // Filter TO date
   if (to) {
     const toDate = parseLocalDate(to);
 
-    if (isNaN(toDate.getTime())) {
-      return res.status(400).json({ error: 'Invalid to date' });
+    if (!toDate) {
+      return res.status(400).json({
+        error: 'Invalid to date'
+      });
     }
 
     toDate.setHours(23, 59, 59, 999);
@@ -149,16 +178,20 @@ app.get('/api/users/:_id/logs', (req, res) => {
     );
   }
 
+  // Apply LIMIT
   if (limit !== undefined) {
-    const limitNum = parseInt(limit, 10);
-
-    if (!Number.isInteger(limitNum) || limitNum < 0) {
-      return res.status(400).json({ error: 'Invalid limit' });
+    if (!/^\d+$/.test(limit)) {
+      return res.status(400).json({
+        error: 'Invalid limit'
+      });
     }
+
+    const limitNum = Number(limit);
 
     userExercises = userExercises.slice(0, limitNum);
   }
 
+  // Prepare log response
   const log = userExercises.map(exercise => ({
     description: exercise.description,
     duration: exercise.duration,
@@ -169,7 +202,7 @@ app.get('/api/users/:_id/logs', (req, res) => {
     username: user.username,
     count: log.length,
     _id: user._id,
-    log: log
+    log
   });
 });
 
