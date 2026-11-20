@@ -1,4 +1,3 @@
-
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -14,6 +13,19 @@ const exercises = [];
 // Generate unique 24-character hexadecimal ID
 function generateId() {
   return crypto.randomBytes(12).toString('hex');
+}
+
+// Parse yyyy-mm-dd strings in local time to prevent UTC timezone shifts
+function parseLocalDate(dateStr) {
+  if (!dateStr) return new Date();
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  if (match) {
+    const [, year, month, day] = match;
+    return new Date(Number(year), Number(month) - 1, Number(day));
+  }
+
+  return new Date(dateStr);
 }
 
 // Middleware
@@ -72,7 +84,7 @@ app.post('/api/users/:_id/exercises', (req, res) => {
     });
   }
 
-  const exerciseDate = date ? new Date(date) : new Date();
+  const exerciseDate = parseLocalDate(date);
 
   if (isNaN(exerciseDate.getTime())) {
     return res.status(400).json({ error: 'Invalid date' });
@@ -110,11 +122,13 @@ app.get('/api/users/:_id/logs', (req, res) => {
   );
 
   if (from) {
-    const fromDate = new Date(from);
+    const fromDate = parseLocalDate(from);
 
     if (isNaN(fromDate.getTime())) {
       return res.status(400).json({ error: 'Invalid from date' });
     }
+
+    fromDate.setHours(0, 0, 0, 0);
 
     userExercises = userExercises.filter(
       exercise => exercise.date >= fromDate
@@ -122,7 +136,7 @@ app.get('/api/users/:_id/logs', (req, res) => {
   }
 
   if (to) {
-    const toDate = new Date(to);
+    const toDate = parseLocalDate(to);
 
     if (isNaN(toDate.getTime())) {
       return res.status(400).json({ error: 'Invalid to date' });
