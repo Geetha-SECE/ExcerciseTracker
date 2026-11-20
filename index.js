@@ -49,139 +49,113 @@ app.get('/api/users', (req, res) => {
 
 // C. Add Exercise
 app.post('/api/users/:_id/exercises', (req, res) => {
-  const { _id } = req.params;
-  const { description, duration, date } = req.body;
-
-  const user = users.find(u => u._id === _id);
+  const user = users.find(u => u._id === req.params._id);
 
   if (!user) {
-    return res.status(404).json({
-      error: 'User not found'
-    });
+    return res.status(404).json({ error: 'User not found' });
   }
+
+  const { description, duration, date } = req.body;
+
+  const durationNum = Number(duration);
 
   if (
     typeof description !== 'string' ||
     !description.trim() ||
     duration === undefined ||
-    duration === ''
+    duration === '' ||
+    !Number.isFinite(durationNum) ||
+    durationNum <= 0
   ) {
     return res.status(400).json({
-      error: 'description and duration are required'
+      error: 'Invalid description or duration'
     });
   }
 
-  const durationNum = Number(duration);
+  const exerciseDate = date ? new Date(date) : new Date();
 
-  if (!Number.isFinite(durationNum) || durationNum <= 0) {
-    return res.status(400).json({
-      error: 'duration must be a positive number'
-    });
-  }
-
-  const dateObj = date
-    ? new Date(date)
-    : new Date();
-
-  if (isNaN(dateObj.getTime())) {
-    return res.status(400).json({
-      error: 'invalid date'
-    });
+  if (isNaN(exerciseDate.getTime())) {
+    return res.status(400).json({ error: 'Invalid date' });
   }
 
   const exercise = {
     userId: user._id,
     description: description.trim(),
     duration: durationNum,
-    date: dateObj.toDateString()
+    date: exerciseDate
   };
 
   exercises.push(exercise);
 
   res.json({
-    username: user.username,
+    ...user,
     description: exercise.description,
     duration: exercise.duration,
-    date: exercise.date,
-    _id: user._id
+    date: exercise.date.toDateString()
   });
 });
 
 // D. Get Exercise Logs
 app.get('/api/users/:_id/logs', (req, res) => {
-  const { _id } = req.params;
-  const { from, to, limit } = req.query;
-
-  const user = users.find(u => u._id === _id);
+  const user = users.find(u => u._id === req.params._id);
 
   if (!user) {
-    return res.status(404).json({
-      error: 'User not found'
-    });
+    return res.status(404).json({ error: 'User not found' });
   }
 
-  // Get exercises belonging to this user
+  const { from, to, limit } = req.query;
+
   let userExercises = exercises.filter(
     exercise => exercise.userId === user._id
   );
 
-  // Validate and filter FROM date
   if (from) {
     const fromDate = new Date(from);
 
     if (isNaN(fromDate.getTime())) {
-      return res.status(400).json({
-        error: 'Invalid from date'
-      });
+      return res.status(400).json({ error: 'Invalid from date' });
     }
 
     userExercises = userExercises.filter(
-      exercise => new Date(exercise.date) >= fromDate
+      exercise => exercise.date >= fromDate
     );
   }
 
-  // Validate and filter TO date
   if (to) {
     const toDate = new Date(to);
 
     if (isNaN(toDate.getTime())) {
-      return res.status(400).json({
-        error: 'Invalid to date'
-      });
+      return res.status(400).json({ error: 'Invalid to date' });
     }
 
     toDate.setHours(23, 59, 59, 999);
 
     userExercises = userExercises.filter(
-      exercise => new Date(exercise.date) <= toDate
+      exercise => exercise.date <= toDate
     );
   }
 
-  // Validate and apply LIMIT
   if (limit !== undefined) {
-    const limitNumber = Number(limit);
+    const limitNum = parseInt(limit, 10);
 
-    if (!Number.isInteger(limitNumber) || limitNumber < 0) {
-      return res.status(400).json({
-        error: 'Invalid limit'
-      });
+    if (!Number.isInteger(limitNum) || limitNum < 0) {
+      return res.status(400).json({ error: 'Invalid limit' });
     }
 
-    userExercises = userExercises.slice(0, limitNumber);
+    userExercises = userExercises.slice(0, limitNum);
   }
 
-  // Prepare log response
   const log = userExercises.map(exercise => ({
     description: exercise.description,
     duration: exercise.duration,
-    date: exercise.date
+    date: exercise.date.toDateString()
   }));
 
   res.json({
     username: user.username,
     count: log.length,
     _id: user._id,
-    log
+    log: log
   });
 });
 
